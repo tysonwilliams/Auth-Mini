@@ -1,6 +1,6 @@
 const bodyParser = require('body-parser');
 const express = require('express');
-
+const mongoose = require('mongoose');
 const Post = require('./post.js');
 
 const STATUS_USER_ERROR = 422;
@@ -28,45 +28,42 @@ const queryAndThen = (query, res, cb) => {
   });
 };
 
-server.get('/accepted-answer/:soID', (req, res) => {
+const findPosts = (req, res, next) => {
   queryAndThen(Post.findOne({ soID: req.params.soID }), res, (post) => {
     if (!post) {
-      sendUserError("Couldn't find post with given ID", res);
+      sendUserError('Couldn\'t find post with given ID', res);
       return;
     }
+    req.post = post;
+    next();
+  });
+};
 
-    const query = Post.findOne({ soID: post.acceptedAnswerID });
-    queryAndThen(query, res, (answer) => {
-      if (!answer) {
-        sendUserError('No accepted answer', res);
-      } else {
-        res.json(answer);
-      }
-    });
+// I
+server.get('/accepted-answer/:soID', findPosts, (req, res) => {
+  const query = Post.findOne({ soID: req.post.acceptedAnswerID });
+  queryAndThen(query, res, (answer) => {
+    if (!answer) {
+      sendUserError('No accepted answer', res);
+    } else {
+      res.json(answer);
+    }
   });
 });
 
-server.get('/top-answer/:soID', (req, res) => {
-  queryAndThen(Post.findOne({ soID: req.params.soID }), res, (post) => {
-    if (!post) {
-      sendUserError("Couldn't find post with given ID", res);
-      return;
+// II
+server.get('/top-answer/:soID', findPosts, (req, res) => {
+  const query = Post.findOne({
+    soID: { $ne: req.post.acceptedAnswerID },
+    parentID: req.post.soID,
+  }).sort({ score: 'desc' });
+
+  queryAndThen(query, res, (answer) => {
+    if (!answer) {
+      sendUserError('No top answer', res);
+    } else {
+      res.json(answer);
     }
-
-    const query = Post
-      .findOne({
-        soID: { $ne: post.acceptedAnswerID },
-        parentID: post.soID,
-      })
-      .sort({ score: 'desc' });
-
-    queryAndThen(query, res, (answer) => {
-      if (!answer) {
-        sendUserError('No top answer', res);
-      } else {
-        res.json(answer);
-      }
-    });
   });
 });
 
